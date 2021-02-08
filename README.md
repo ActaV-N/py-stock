@@ -1,2 +1,3 @@
-# my-first-binder
-My first binder
+# Python stock data analysis
+
+Workflow of the book 'Python stock data analysis'
