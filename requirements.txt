@@ -2,3 +2,5 @@ pandas_datareader==0.9.0
 yfinance == 0.1.55
 matplotlib == 3.3.4
 scipy == 1.6.0
+lxml == 4.6.2
+html5lib == 1.1
