@@ -1,10 +1,47 @@
 # MyPackage/Investar/DBUpdater.py
+import sqlite3
+
 class DBUpdater:
     def __init__(self):
         '''생성자: SqliteDB 연결 및 종목코드 딕셔너리 생성'''
+        self.conn = sqlite3.connect('../../DB/investar.db')
+        cursor = self.conn.cursor()
+
+        sql = '''
+        CREATE TABLE IF NOT EXISTS company_info(
+            code varchar(20),
+            company varchar(40),
+            last_update date,
+            PRIMARY KEY(code)
+        );
+        '''
+        cursor.execute(sql)
+
+        sql = '''
+        CREATE TABLE IF NOT EXISTS daily_price(
+            code varchar(20),
+            date date,
+            open bigint(20),
+            high bigint(20),
+            low bigint(20),
+            close bigint(20),
+            diff bigint(20),
+            volume bigint(20),
+            PRIMARY KEY(code, date)
+        );
+        '''
+        cursor.execute(sql)
+        
+        self.conn.commit()
+        
+        self.codes = dict()
+        self.update_comp_info()
+        
         
     def __del__(self):
         '''소멸자: DB연결 해제인데 필요할진 몰겟'''
+        self.conn.close()
+        
     
     def read_krx_code(self):
         '''KRX로부터 상장법인목록 파일을 읽어와서 데이터프레임으로 변환'''
