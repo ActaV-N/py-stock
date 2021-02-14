@@ -1,6 +1,7 @@
 # MyPackage/Investar/DBUpdater.py
 import sqlite3
 import pandas as pd
+from datetime import datetime
 
 class DBUpdater:
     def __init__(self):
@@ -57,6 +58,31 @@ class DBUpdater:
         
     def update_comp_info(self):
         '''종목코드를 company_info 테이블에 업데이트 한 후 딕셔너리에 저장'''
+        sql = "SELECT * FROM company_info"
+        df = pd.read_sql(sql, self.conn)
+        
+        for idx in range(len(df)):
+            self.codes[df['code'].values[idx]] = df['company'].values[idx]
+        with self.conn.cursor() as curs:
+            sql = "SELECT max(last_update) FROM company_info"
+            curs.execute(sql)
+            rs = curs.fetchone()
+            today = datetime.today().strftime('%Y-%m-%d')
+            
+            if rs[0] == None or rs[0].strftime('%Y-%m-%d') < today:
+                krx = self.read_krx_code()
+                for idx in range(len(krx)):
+                    code = krx.code.values[idx]
+                    company = krx.company.values[idx]
+                    sql = f'REPLACE INTO company_info(code, company, last_update) VALUES('{code}','{company}','{today}')'
+                    curs.execute(sql)
+                    
+                    self.codes[code] = company
+                    tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+                    print(f'[{tmnow}] {idx:04d} REPLACE INTO company_info Values ({code}, {company}, {today})')
+                self.conn.commit()
+                print(')
+        
         
     def read_naver(self, code, company, pages_to_fetch):
         '''네이버 금융에서 읽어온 주식 시세를 DB에 REPLACE'''
