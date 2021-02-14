@@ -35,6 +35,7 @@ class DBUpdater:
         cursor.execute(sql)
         
         self.conn.commit()
+        cursor.close()
         
         self.codes = dict()
         self.update_comp_info()
@@ -63,25 +64,28 @@ class DBUpdater:
         
         for idx in range(len(df)):
             self.codes[df['code'].values[idx]] = df['company'].values[idx]
-        with self.conn.cursor() as curs:
-            sql = "SELECT max(last_update) FROM company_info"
-            curs.execute(sql)
-            rs = curs.fetchone()
-            today = datetime.today().strftime('%Y-%m-%d')
-            
-            if rs[0] == None or rs[0].strftime('%Y-%m-%d') < today:
-                krx = self.read_krx_code()
-                for idx in range(len(krx)):
-                    code = krx.code.values[idx]
-                    company = krx.company.values[idx]
-                    sql = f'REPLACE INTO company_info(code, company, last_update) VALUES('{code}','{company}','{today}')'
-                    curs.execute(sql)
-                    
-                    self.codes[code] = company
-                    tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
-                    print(f'[{tmnow}] {idx:04d} REPLACE INTO company_info Values ({code}, {company}, {today})')
-                self.conn.commit()
-                print(')
+
+        cursor = self.conn.cursor()
+        
+        sql = "SELECT max(last_update) FROM company_info"
+        cursor.execute(sql)
+        rs = cursor.fetchone()
+        today = datetime.today().strftime('%Y-%m-%d')
+
+        if rs[0] == None or rs[0] < today:
+            krx = self.read_krx_code()
+            for idx in range(len(krx)):
+                code = krx.code.values[idx]
+                company = krx.company.values[idx]
+                sql = f"REPLACE INTO company_info (code, company, last_update) VALUES('{code}','{company}','{today}')"
+                cursor.execute(sql)
+
+                self.codes[code] = company
+                tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+                print(f'[{tmnow}] {idx:04d} REPLACE INTO company_info Values ({code}, {company}, {today})')
+            self.conn.commit()
+            print('')
+        cursor.close()
         
         
     def read_naver(self, code, company, pages_to_fetch):
