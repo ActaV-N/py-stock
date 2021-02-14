@@ -1,5 +1,6 @@
 # MyPackage/Investar/DBUpdater.py
 import sqlite3
+import pandas as pd
 
 class DBUpdater:
     def __init__(self):
@@ -45,6 +46,14 @@ class DBUpdater:
     
     def read_krx_code(self):
         '''KRX로부터 상장법인목록 파일을 읽어와서 데이터프레임으로 변환'''
+        url = 'https://kind.krx.co.kr/corpgeneral/corpList.do?method=download&pageIndex=1&currentPageSize=5000&comAbbrv=&beginIndex=&orderMode=3&orderStat=D&isurCd=&repIsuSrtCd=&searchCodeType=&marketType=&searchType=13&industry=&fiscalYearEnd=all&comAbbrvTmp=&location=all'
+        
+        krx = pd.read_html(url, header=0)[0]
+        krx = krx[['종목코드','회사명']]
+        krx = krx.rename(columns={'종목코드':'code','회사명':'company'})
+        krx.code = krx.code.map('{:06d}'.format)
+        
+        return krx
         
     def update_comp_info(self):
         '''종목코드를 company_info 테이블에 업데이트 한 후 딕셔너리에 저장'''
