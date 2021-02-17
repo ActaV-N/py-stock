@@ -1,6 +1,8 @@
 import pandas as pd
 import urllib.request as urllib
 import sqlite3
+from datetime import datetime
+from bs4 import BeautifulSoup
 
 class DBUpdater:
     def __init__(self):
@@ -54,12 +56,98 @@ class DBUpdater:
     
     def update_company_info(self):
         '''Update company_info table'''
-        krx = self.read_krx_code()
+        sql = "SELECT * FROM company_info"
+        df = pd.read_sql(sql, self.conn)
         
-        for idx in range(len(krx)):
-            self.codes[krx.code.values[idx]] = krx.copmany.values[idx]
+        for idx in range(len(df)):
+            self.codes[df.code.values[idx]] = df.copmany.values[idx]
         
+        curs = self.conn.cursor()
         sql = 'SELECT max(last_update) from company_info'
+        curs.execute(sql)
+        
+        rs = curs.fetchone()
+        today = datetime.today().strftime('%Y-%m-%d')
+        
+        if rs[0] == None or rs[0] < today:
+            krx = self.read_krx_code()
+            for idx in range(len(krx)):
+                code = krx.code.values[idx]
+                company = krx.company.values[idx]
+                           
+                tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+                
+                sql = f"REPLACE INTO company_info(code, company, last_update) VALUES('{code}', '{company}', '{today}')"
+                curs.execute(sql)
+                
+                self.codes[code] = company
+                
+                print(f"[{tmnow}] #{idx:04d} {company} ({code}) : REPLACE INTO company_info({code},{company},{today})")
+            self.conn.commit()
+            print('')
+                    
+                
+    def read_naver(self, code, pages_to_fetch):
+        '''Read OHLC prices from naver finance and return dataframe'''
+        try:
+            url = f'https://finance.naver.com/item/sise_day.nhn?code={code}'
+
+            opener = urllib.build_opener()
+            opener.addheaders = [('User-Agent','Mozilla/5.0')]
+
+            with opener.open(url) as doc:
+                if doc is None:
+                    return None
+                
+                html = BeautifulSoup(doc, 'lxml')
+                pgrr = html.find('td', class_='pgRR')
+                
+                if pgrr is None:
+                    return None
+                
+                s = pgrr.a['href'].split('=')
+
+                last_page = s[-1]
+
+            pages = min(int(last_page), pages_to_fetch)
+            
+            df = pd.DataFrame()
+            for page in range(1, pages + 1):
+                pageUrl = f'{url}&page={page}'
+
+                df.append(pd.read_html(opener.open(pageUrl).read(), header=0)[0])
+                tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+                
+                print(f"[{tmnow}] {self.codes[code]} ({code}) : {page:04d} / {pages:04d} pages are downloading...")        
+                
+            df = df.rename(columns={'날짜':'date','종가':'close','전일비':'diff','시가':'open','고가':'high','저가':'low','거래량':'volume'})
+            df = df.dropna()
+            df[['close', 'diff', 'open', 'high', 'low', 'volume']] = df[['close', 'diff', 'open', 'high', 'low', 'volume']].astype(int)
+
+            df = df[['date', 'open', 'high', 'low', 'close', 'diff', 'volume']]
+        except Exception as e:
+            print('Exception occured: ',str(e))
+            return None
+            
+        return df
+            
+        
+    def replace_into_db(self, df, code, num):
+        '''Replace into daily_price with data from naver finance'''
+        curs = self.conn.cursor()
+        
+        for r in df.itertuples():
+            sql = f"REPLACE INTO daily_price VALUES('{code}', '{r.date}', {r.open},{r.high}, {r.low}, {r.close}, {r.diff}, {r.volume})"
+            curs.execute(sql)
+                
+        self.conn.commit()
+        
+        
+        
+        
+    def update_daily_price(self):
+        '''Update '''
+        
         
         
 if __name__ == '__main__':
