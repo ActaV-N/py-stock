@@ -60,7 +60,7 @@ class DBUpdater:
         df = pd.read_sql(sql, self.conn)
         
         for idx in range(len(df)):
-            self.codes[df.code.values[idx]] = df.copmany.values[idx]
+            self.codes[df.code.values[idx]] = df.company.values[idx]
         
         curs = self.conn.cursor()
         sql = 'SELECT max(last_update) from company_info'
@@ -144,16 +144,16 @@ class DBUpdater:
         
         tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
         print(f"[{tmnow}] #{num:04d} {company} ({code}): {len(df)}rows > REPLACE INTO DB")
-        cursor.close()
+        curs.close()
         
         
     def update_daily_price(self, pages_to_fetch):
         '''Update daily_price with data from krx'''
         for idx, code in enumerate(self.codes):
             df = self.read_naver(code, self.codes[code], pages_to_fetch)
-            if df == None:
+            if df is None:
                 continue
-            self.replace_int_db(df, code, self.codes[code], idx)
+            self.replace_into_db(df, code, self.codes[code], idx)
         
     def execute_daily(self):
         '''Execute daily'''
@@ -163,27 +163,3 @@ class DBUpdater:
 if __name__ == '__main__':
     dbu = DBUpdater()
     dbu.execute_daily()
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-    
