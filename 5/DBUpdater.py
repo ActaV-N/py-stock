@@ -13,7 +13,7 @@ class DBUpdater:
         sql = '''
             CREATE TABLE IF NOT EXISTS company_info(
                 code varchar(20),
-                copmany varchar(40),
+                company varchar(40),
                 last_update date,
                 PRIMARY KEY(code)
             )
@@ -155,8 +155,35 @@ class DBUpdater:
                 continue
             self.replace_int_db(df, code, self.codes[code], idx)
         
+    def execute_daily(self):
+        '''Execute daily'''
+        self.update_company_info()
+        self.update_daily_price(3)
         
 if __name__ == '__main__':
     dbu = DBUpdater()
-    dbu.update_daily_price(3)
+    dbu.execute_daily()
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
     
