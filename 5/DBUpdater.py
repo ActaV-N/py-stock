@@ -1,39 +1,39 @@
 import pandas as pd
 import urllib.request as urllib
-import sqlite3
+import pymysql, calendar, time, json
 from datetime import datetime
 from bs4 import BeautifulSoup
 
 class DBUpdater:
     def __init__(self):
         '''Initialize sqltie and table'''
-        self.conn = sqlite3.connect('investar.db')
-        curs = self.conn.cursor()
+        self.conn = pymysql.connect(host='localhost', user='root', password='****', db='Investar', charset='utf8')
         
-        sql = '''
-            CREATE TABLE IF NOT EXISTS company_info(
-                code varchar(20),
-                company varchar(40),
-                last_update date,
-                PRIMARY KEY(code)
-            )
-        '''
-        curs.execute(sql)
-        
-        sql = '''
-            CREATE TABLE IF NOT EXISTS daily_price(
-                code varchar(20),
-                date date,
-                oepn bigint(20),
-                high bigint(20),
-                low bigint(20),
-                close bigint(20),
-                diff bigint(20),
-                volume bigint(20),
-                PRIMARY KEY(code, date)
-            )
-        '''
-        curs.execute(sql)
+        with self.conn.cursor() as curs:
+            sql = '''
+                CREATE TABLE IF NOT EXISTS company_info(
+                    code varchar(20),
+                    company varchar(40),
+                    last_update date,
+                    PRIMARY KEY(code)
+                )
+            '''
+            curs.execute(sql)
+
+            sql = '''
+                CREATE TABLE IF NOT EXISTS daily_price(
+                    code varchar(20),
+                    date date,
+                    oepn bigint(20),
+                    high bigint(20),
+                    low bigint(20),
+                    close bigint(20),
+                    diff bigint(20),
+                    volume bigint(20),
+                    PRIMARY KEY(code, date)
+                )
+            '''
+            curs.execute(sql)
         self.conn.commit()
         
         self.codes = {}
@@ -62,29 +62,29 @@ class DBUpdater:
         for idx in range(len(df)):
             self.codes[df.code.values[idx]] = df.company.values[idx]
         
-        curs = self.conn.cursor()
-        sql = 'SELECT max(last_update) from company_info'
-        curs.execute(sql)
-        
-        rs = curs.fetchone()
-        today = datetime.today().strftime('%Y-%m-%d')
-        
-        if rs[0] == None or rs[0] < today:
-            krx = self.read_krx_code()
-            for idx in range(len(krx)):
-                code = krx.code.values[idx]
-                company = krx.company.values[idx]
-                           
-                tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
-                
-                sql = f"REPLACE INTO company_info(code, company, last_update) VALUES('{code}', '{company}', '{today}')"
-                curs.execute(sql)
-                
-                self.codes[code] = company
-                
-                print(f"[{tmnow}] #{idx:04d} {company} ({code}) : REPLACE INTO company_info({code},{company},{today})")
-            self.conn.commit()
-            print('')
+        with self.conn.cursor() as curs:
+            sql = 'SELECT max(last_update) from company_info'
+            curs.execute(sql)
+
+            rs = curs.fetchone()
+            today = datetime.today().strftime('%Y-%m-%d')
+
+            if rs[0] == None or rs[0] < today:
+                krx = self.read_krx_code()
+                for idx in range(len(krx)):
+                    code = krx.code.values[idx]
+                    company = krx.company.values[idx]
+
+                    tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+                    sql = f"REPLACE INTO company_info(code, company, last_update) VALUES('{code}', '{company}', '{today}')"
+                    curs.execute(sql)
+
+                    self.codes[code] = company
+
+                    print(f"[{tmnow}] #{idx:04d} {company} ({code}) : REPLACE INTO company_info({code},{company},{today})")
+                self.conn.commit()
+                print('')
                     
                 
     def read_naver(self, code, company, pages_to_fetch):
@@ -134,17 +134,15 @@ class DBUpdater:
         
     def replace_into_db(self, df, code, company, num):
         '''Replace into daily_price with data from naver finance'''
-        curs = self.conn.cursor()
-        
-        for r in df.itertuples():
-            sql = f"REPLACE INTO daily_price VALUES('{code}', '{r.date}', {r.open},{r.high}, {r.low}, {r.close}, {r.diff}, {r.volume})"
-            curs.execute(sql)
-                
-        self.conn.commit()
+        with self.conn.cursor() as curs:
+            for r in df.itertuples():
+                sql = f"REPLACE INTO daily_price VALUES('{code}', '{r.date}', {r.open},{r.high}, {r.low}, {r.close}, {r.diff}, {r.volume})"
+                curs.execute(sql)
+
+            self.conn.commit()
         
         tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
         print(f"[{tmnow}] #{num:04d} {company} ({code}): {len(df)}rows > REPLACE INTO DB")
-        curs.close()
         
         
     def update_daily_price(self, pages_to_fetch):
@@ -158,7 +156,31 @@ class DBUpdater:
     def execute_daily(self):
         '''Execute daily'''
         self.update_company_info()
-        self.update_daily_price(3)
+        try:
+            with open('config.json', 'r') as in_file:
+                config = json.load(in_file)
+                pages_to_fetch = config['pages_to_fetch']
+        except FileNotFoundError:
+            with open('config.json', 'w') as out_file:
+                pages_to_fetch = 100
+                config = {'pages_to_fetch':1}
+                json.dump(config, out_file)
+                
+        self.update_daily_price(pages_to_fetch)
+        
+        tmnow = datetime.now()
+        last_day = calendar.monthrange(tmnow.year, tmnow.month)[1]
+        if tmnow.month == 12 and tmnow.day == last_day:
+            tmnext = tmnow.replace(year=tmnow.year+1, month=1, day=1, hour=17, minute=0, second=0)
+        elif tmnow.day == last_day:
+            tmnext = tmnow.replace(month = tmnow.month + 1, day=1, hour=17, minute=0, second=0)
+        else:
+            tmnext = tmnow.replace(day=tmnow.day + 1, hour=17, minute=0,second=0)
+            
+        secs = (tmnext - tmnow).seconds
+        t = Timer(secs, self.excute_daily)
+        print(f'Waiting for next update {tmnext.strftime('%Y-%m-%d %H:%M')}')
+        t.start()
         
 if __name__ == '__main__':
     dbu = DBUpdater()
