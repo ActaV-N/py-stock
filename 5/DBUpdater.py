@@ -87,7 +87,7 @@ class DBUpdater:
             print('')
                     
                 
-    def read_naver(self, code, pages_to_fetch):
+    def read_naver(self, code, company, pages_to_fetch):
         '''Read OHLC prices from naver finance and return dataframe'''
         try:
             url = f'https://finance.naver.com/item/sise_day.nhn?code={code}'
@@ -115,10 +115,10 @@ class DBUpdater:
             for page in range(1, pages + 1):
                 pageUrl = f'{url}&page={page}'
 
-                df.append(pd.read_html(opener.open(pageUrl).read(), header=0)[0])
+                df = df.append(pd.read_html(opener.open(pageUrl).read(), header=0)[0])
                 tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
                 
-                print(f"[{tmnow}] {self.codes[code]} ({code}) : {page:04d} / {pages:04d} pages are downloading...")        
+                print(f"[{tmnow}] {company} ({code}) : {page:04d} / {pages:04d} pages are downloading...")        
                 
             df = df.rename(columns={'날짜':'date','종가':'close','전일비':'diff','시가':'open','고가':'high','저가':'low','거래량':'volume'})
             df = df.dropna()
@@ -132,7 +132,7 @@ class DBUpdater:
         return df
             
         
-    def replace_into_db(self, df, code, num):
+    def replace_into_db(self, df, code, company, num):
         '''Replace into daily_price with data from naver finance'''
         curs = self.conn.cursor()
         
@@ -142,38 +142,21 @@ class DBUpdater:
                 
         self.conn.commit()
         
+        tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+        print(f"[{tmnow}] #{num:04d} {company} ({code}): {len(df)}rows > REPLACE INTO DB")
+        cursor.close()
         
         
-        
-    def update_daily_price(self):
-        '''Update '''
-        
+    def update_daily_price(self, pages_to_fetch):
+        '''Update daily_price with data from krx'''
+        for idx, code in enumerate(self.codes):
+            df = self.read_naver(code, self.codes[code], pages_to_fetch)
+            if df == None:
+                continue
+            self.replace_int_db(df, code, self.codes[code], idx)
         
         
 if __name__ == '__main__':
     dbu = DBUpdater()
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+    dbu.update_daily_price(3)
     
