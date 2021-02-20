@@ -61,7 +61,7 @@ class MarketDB:
             start_date = f"{start_year:04d}-{start_month:02d}-{start_day:02d}"
             
         if end_date is None:
-            end_date = datetime.today().stftime('%Y-%m-%d')
+            end_date = datetime.today().strftime('%Y-%m-%d')
             print(f"end_date is initialized to '{end_date}'")
         else:
             end_list = re.split('\D+', end_date)
